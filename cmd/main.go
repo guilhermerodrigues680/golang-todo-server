@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 	"todoserver"
 	"todoserver/appsettings"
 	storageinmem "todoserver/storage/inmem"
@@ -35,6 +40,54 @@ func getContextLogger(l *logrus.Logger, layer, pkg string) *logrus.Entry {
 	return l.WithField(layer, pkg)
 }
 
+// startHttpServer é uma goroutine para Start e Graceful Shutdown do http.Server
+func startHttpServer(srv *http.Server, done chan error, logger *logrus.Logger) {
+	go func() {
+		err := srv.ListenAndServe()
+
+		// sempre retornará ErrServerClosed ao chamar srv.Shutdown()
+		if errors.Is(err, http.ErrServerClosed) {
+			logger.Trace("HTTP Server graceful shutdown")
+			return
+		}
+
+		if err != nil {
+			logger.Errorf("HTTP Server Failed : %s", err)
+			done <- fmt.Errorf("HTTP Server Failed : %w", err)
+			return
+		}
+
+		done <- nil
+	}()
+}
+
+// startSignalListener é uma goroutine para capturar sinais enviados ao processo
+// e chamar o Shutdown do http.Server
+func startSignalListener(srv *http.Server, done chan error, logger *logrus.Logger) {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigs
+		logger.Infof("signal %s received", sig)
+		logger.Info("Start HTTP Server graceful shutdown")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); errors.Is(err, context.DeadlineExceeded) {
+			done <- fmt.Errorf("Timeout shutting down the server : %s", err)
+			return
+		} else if err != nil {
+			done <- fmt.Errorf("Failure shutting down the server : %s", err)
+			return
+		}
+
+		logger.Info("HTTP Server graceful shutdown OK!")
+		done <- nil
+	}()
+}
+
 func main() {
 	logger := getLogger()
 
@@ -45,7 +98,7 @@ func main() {
 }
 
 func run(logger *logrus.Logger) error {
-	logger.Info("Starting TO DO Service")
+	logger.Infof("Starting TO DO Service. PID: %d", os.Getpid())
 
 	settings, err := appsettings.NewAppSettings("../settings.json")
 	if err != nil {
@@ -62,9 +115,18 @@ func run(logger *logrus.Logger) error {
 
 	logger.Infof("Listening on: %s", settings.ServerInfo.Address)
 
-	err = http.ListenAndServe(settings.ServerInfo.Address, restRouter.Handler)
-	if err != nil {
-		return fmt.Errorf("HTTP Server Failed : %w", err)
+	srv := &http.Server{
+		Addr:    settings.ServerInfo.Address,
+		Handler: restRouter.Handler,
+	}
+
+	done := make(chan error)
+	startHttpServer(srv, done, logger)
+	startSignalListener(srv, done, logger)
+
+	if err := <-done; err != nil {
+		logger.Errorf("Error in run : %s", err)
+		return fmt.Errorf("Error in run : %w", err)
 	}
 
 	return nil
