@@ -9,15 +9,16 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"todoserver"
-	"todoserver/appsettings"
-	storageinmem "todoserver/storage/inmem"
-	transportrest "todoserver/transport/rest"
+	"todoapp"
+	"todoapp/appsettings"
+	storageinmem "todoapp/storage/inmem"
+	transportrest "todoapp/transport/rest"
 
 	"github.com/sirupsen/logrus"
 )
 
-func getLogger() *logrus.Logger {
+// getLogger retorna uma instância do logger com configurações pré-definidas
+func getLogger(outputToFile bool) *logrus.Logger {
 	var logger = logrus.New()
 
 	logger.SetFormatter(&logrus.TextFormatter{
@@ -27,15 +28,29 @@ func getLogger() *logrus.Logger {
 		PadLevelText:           true,
 	})
 
-	// Output to stdout instead of the default stderr
-	logger.SetOutput(os.Stdout)
-
 	// log all
 	logger.SetLevel(logrus.TraceLevel)
+
+	if !outputToFile {
+		// Output to stdout instead of the default stderr
+		logger.SetOutput(os.Stdout)
+		return logger
+	}
+
+	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		logger.SetOutput(file)
+		//multiWriter := io.MultiWriter(os.Stdout, file)
+		//logger.SetOutput(multiWriter)
+	} else {
+		logger.Info("Failed to log to file, using Stdout")
+		logger.SetOutput(os.Stdout)
+	}
 
 	return logger
 }
 
+// getContextLogger retorna um logger com contexto
 func getContextLogger(l *logrus.Logger, layer, pkg string) *logrus.Entry {
 	return l.WithField(layer, pkg)
 }
@@ -52,7 +67,6 @@ func startHttpServer(srv *http.Server, done chan error, logger *logrus.Logger) {
 		}
 
 		if err != nil {
-			logger.Errorf("HTTP Server Failed : %s", err)
 			done <- fmt.Errorf("HTTP Server Failed : %w", err)
 			return
 		}
@@ -72,7 +86,8 @@ func startSignalListener(srv *http.Server, done chan error, logger *logrus.Logge
 		logger.Infof("signal %s received", sig)
 		logger.Info("Start HTTP Server graceful shutdown")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		timeout := 5 * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
 		if err := srv.Shutdown(ctx); errors.Is(err, context.DeadlineExceeded) {
@@ -89,7 +104,7 @@ func startSignalListener(srv *http.Server, done chan error, logger *logrus.Logge
 }
 
 func main() {
-	logger := getLogger()
+	logger := getLogger(false)
 
 	err := run(logger)
 	if err != nil {
@@ -97,20 +112,21 @@ func main() {
 	}
 }
 
+// run é responsável por inicializar e finalizar a aplicação
 func run(logger *logrus.Logger) error {
-	logger.Infof("Starting TO DO Service. PID: %d", os.Getpid())
+	logger.Infof("Starting TO-DO App. PID: %d", os.Getpid())
 
 	settings, err := appsettings.NewAppSettings("../settings.json")
 	if err != nil {
 		return fmt.Errorf("Failed to get configurations : %w", err)
 	}
 
-	//storageLogger := getContextLogger(logger, "storage", "inmem")
-	//serviceLogger := getContextLogger(logger, "service", "todoservice")
+	storageLogger := getContextLogger(logger, "storage", "inmem")
+	serviceLogger := getContextLogger(logger, "service", "todoservice")
 	transportLogger := getContextLogger(logger, "transport", "rest")
 
-	storage := storageinmem.NewStorageTodoInmem()
-	service := todoserver.NewTodoService(storage)
+	storage := storageinmem.NewStorageTodoInmem(storageLogger)
+	service := todoapp.NewTodoService(storage, serviceLogger)
 	restRouter := transportrest.NewTransportRest(service, "/api/v1", transportLogger)
 
 	logger.Infof("Listening on: %s", settings.ServerInfo.Address)
@@ -125,8 +141,9 @@ func run(logger *logrus.Logger) error {
 	startSignalListener(srv, done, logger)
 
 	if err := <-done; err != nil {
-		logger.Errorf("Error in run : %s", err)
-		return fmt.Errorf("Error in run : %w", err)
+		errWrapped := fmt.Errorf("Error in run : %w", err)
+		logger.Error(errWrapped)
+		return errWrapped
 	}
 
 	return nil

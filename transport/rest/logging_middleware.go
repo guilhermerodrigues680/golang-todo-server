@@ -20,10 +20,10 @@ func NewLoggingMiddleware(next http.Handler, logger *logrus.Entry) *LoggingMiddl
 func (m *LoggingMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	remoteIp, _, _ := net.SplitHostPort(r.RemoteAddr)
 	forwardedFor := r.Header.Get("X-Forwarded-For")
-	m.logger.Infof("Start: %s %s '%s %s'", forwardedFor, remoteIp, r.Method, r.RequestURI)
+	m.logger.Infof("Start: %s - %s '%s %s'", forwardedFor, remoteIp, r.Method, r.RequestURI)
 	lw := NewLoggingResponseWriter(w)
 	m.next.ServeHTTP(lw, r)
-	m.logger.Infof("End:   %s %s '%s %s' %d", forwardedFor, remoteIp, r.Method, r.RequestURI, lw.statusCode)
+	m.logger.Infof("End:   %s - %s '%s %s' %d", forwardedFor, remoteIp, r.Method, r.RequestURI, lw.statusCode)
 }
 
 // loggingResponseWriter faz o log do código HTTP da resposta
@@ -33,8 +33,8 @@ type loggingResponseWriter struct {
 }
 
 func NewLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
-	// WriteHeader(int) is not called if our response implicitly returns 200 OK, so
-	// we default to that status code.
+	// WriteHeader(int) não é chamado se nossa resposta retornar implicitamente 200 OK, então
+	// configura-se por default este status code.
 	return &loggingResponseWriter{w, http.StatusOK}
 }
 

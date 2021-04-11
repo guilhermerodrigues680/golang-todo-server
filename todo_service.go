@@ -1,6 +1,14 @@
-package todoserver
+package todoapp
 
-// Representa um TO DO no sistema
+import (
+	"errors"
+	"fmt"
+	"todoapp/storage"
+
+	"github.com/sirupsen/logrus"
+)
+
+// Representa um TO-DO no sistema
 type Todo struct {
 	ID          int    `json:"id"`
 	Description string `json:"description"`
@@ -16,11 +24,18 @@ type TodoStorage interface {
 }
 
 type TodoService struct {
-	s TodoStorage
+	s      TodoStorage
+	logger *logrus.Entry
 }
 
-func NewTodoService(s TodoStorage) *TodoService {
-	return &TodoService{s: s}
+// ErrNotFound é o erro returnado pelo service quando uma busca no storage não retorna resultados.
+var ErrNotFound = storage.ErrNotFound
+
+func NewTodoService(s TodoStorage, logger *logrus.Entry) *TodoService {
+	return &TodoService{
+		s:      s,
+		logger: logger,
+	}
 }
 
 func (ts *TodoService) Create(description string) (Todo, error) {
@@ -28,7 +43,14 @@ func (ts *TodoService) Create(description string) (Todo, error) {
 }
 
 func (ts *TodoService) Read(id int) (Todo, error) {
-	return ts.s.Read(id)
+	todo, err := ts.s.Read(id)
+	if errors.Is(err, storage.ErrNotFound) {
+		return todo, fmt.Errorf("%w", ErrNotFound)
+	} else if err != nil {
+		return todo, err
+	}
+
+	return todo, nil
 }
 
 func (ts *TodoService) ReadAll() ([]Todo, error) {

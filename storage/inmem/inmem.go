@@ -2,68 +2,72 @@ package inmem
 
 import (
 	"fmt"
-	"todoserver"
-	"todoserver/storage"
+	"todoapp"
+	"todoapp/storage"
+
+	"github.com/sirupsen/logrus"
 )
 
 type StorageTodoInmem struct {
-	Todos         []todoserver.Todo
-	CurrentSerial int
+	todos         []todoapp.Todo
+	currentSerial int
+	logger        *logrus.Entry
 }
 
-func NewStorageTodoInmem() *StorageTodoInmem {
+func NewStorageTodoInmem(logger *logrus.Entry) *StorageTodoInmem {
 	return &StorageTodoInmem{
-		Todos:         make([]todoserver.Todo, 0),
-		CurrentSerial: 0,
+		todos:         make([]todoapp.Todo, 0),
+		currentSerial: 0,
+		logger:        logger,
 	}
 }
 
-func (stim *StorageTodoInmem) Create(description string) (todoserver.Todo, error) {
-	stim.CurrentSerial++
-	newTodo := todoserver.Todo{
-		ID:          stim.CurrentSerial,
+func (stim *StorageTodoInmem) Create(description string) (todoapp.Todo, error) {
+	stim.currentSerial++
+	newTodo := todoapp.Todo{
+		ID:          stim.currentSerial,
 		Description: description,
 		Done:        false,
 	}
-	stim.Todos = append(stim.Todos, newTodo)
+	stim.todos = append(stim.todos, newTodo)
 	return newTodo, nil
 }
 
-func (stim *StorageTodoInmem) Read(id int) (todoserver.Todo, error) {
-	for _, todo := range stim.Todos {
+func (stim *StorageTodoInmem) Read(id int) (todoapp.Todo, error) {
+	for _, todo := range stim.todos {
 		if todo.ID == id {
 			return todo, nil
 		}
 	}
-	return todoserver.Todo{}, fmt.Errorf("%w '%d'", storage.ErrNotFound, id)
+	return todoapp.Todo{}, fmt.Errorf("%w : No item with id '%d'", storage.ErrNotFound, id)
 }
 
-func (stim *StorageTodoInmem) ReadAll() ([]todoserver.Todo, error) {
-	return stim.Todos, nil
+func (stim *StorageTodoInmem) ReadAll() ([]todoapp.Todo, error) {
+	return stim.todos, nil
 }
 
-func (stim *StorageTodoInmem) Update(id int, description string, done bool) (todoserver.Todo, error) {
-	for idx, todo := range stim.Todos {
+func (stim *StorageTodoInmem) Update(id int, description string, done bool) (todoapp.Todo, error) {
+	for idx, todo := range stim.todos {
 		if todo.ID == id {
-			updatedTodo := todoserver.Todo{
+			updatedTodo := todoapp.Todo{
 				ID:          id,
 				Description: description,
 				Done:        done,
 			}
-			stim.Todos = append(stim.Todos[:idx], stim.Todos[idx+1:]...)
-			stim.Todos = append(stim.Todos, updatedTodo)
+			stim.todos = append(stim.todos[:idx], stim.todos[idx+1:]...)
+			stim.todos = append(stim.todos, updatedTodo)
 			return updatedTodo, nil
 		}
 	}
-	return todoserver.Todo{}, fmt.Errorf("%w '%d'", storage.ErrNotFound, id)
+	return todoapp.Todo{}, fmt.Errorf("%w : No item with id '%d'", storage.ErrNotFound, id)
 }
 
 func (stim *StorageTodoInmem) Delete(id int) error {
-	for idx, todo := range stim.Todos {
+	for idx, todo := range stim.todos {
 		if todo.ID == id {
-			stim.Todos = append(stim.Todos[:idx], stim.Todos[idx+1:]...)
+			stim.todos = append(stim.todos[:idx], stim.todos[idx+1:]...)
 			return nil
 		}
 	}
-	return fmt.Errorf("%w '%d'", storage.ErrNotFound, id)
+	return fmt.Errorf("%w : No item with id '%d'", storage.ErrNotFound, id)
 }

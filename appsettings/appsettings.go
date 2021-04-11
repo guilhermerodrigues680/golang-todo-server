@@ -8,14 +8,19 @@ import (
 	"path/filepath"
 )
 
-type ServerInfo struct {
-	Address string `json:"address"`
-}
+// Utilitário para obtenção de configurações da aplicação
 
+// AppSettings representa a estrutura que o arquivo '.json' de configurações deve possuir
 type AppSettings struct {
 	ServerInfo ServerInfo `json:"server_info"`
 }
 
+// ServerInfo configurações do servidor HTTP
+type ServerInfo struct {
+	Address string `json:"address"`
+}
+
+// readFromFile lê as configurações de um arquivo '.json'
 func readFromFile(settingsFilePath string) (*AppSettings, error) {
 	ex, err := os.Executable()
 	if err != nil {

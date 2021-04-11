@@ -1,4 +1,4 @@
-module todoserver
+module todoapp
 
 go 1.16
 

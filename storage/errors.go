@@ -2,4 +2,5 @@ package storage
 
 import "errors"
 
-var ErrNotFound = errors.New("the index was not found")
+// ErrNotFound é o erro returnado pelo storage quando uma busca no storage não retorna resultados.
+var ErrNotFound = errors.New("no items found")
