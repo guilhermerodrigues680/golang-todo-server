@@ -12,12 +12,18 @@ import (
 
 // AppSettings representa a estrutura que o arquivo '.json' de configurações deve possuir
 type AppSettings struct {
-	ServerInfo ServerInfo `json:"server_info"`
+	ServerInfo  ServerInfo  `json:"server_info"`
+	Environment Environment `json:"environment"`
 }
 
 // ServerInfo configurações do servidor HTTP
 type ServerInfo struct {
 	Address string `json:"address"`
+}
+
+type Environment struct {
+	AppMode      string `json:"app_mode"`
+	IsProduction bool   `json:"is_production"`
 }
 
 // readFromFile lê as configurações de um arquivo '.json'
@@ -49,6 +55,20 @@ func readFromFile(settingsFilePath string) (*AppSettings, error) {
 	return &settings, nil
 }
 
+func readEnv() *Environment {
+	return &Environment{
+		AppMode:      os.Getenv("APP_MODE"),
+		IsProduction: os.Getenv("APP_MODE") == "production",
+	}
+}
+
 func NewAppSettings(settingsFilePath string) (*AppSettings, error) {
-	return readFromFile(settingsFilePath)
+	appSettings, err := readFromFile(settingsFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	appSettings.Environment = *readEnv()
+
+	return appSettings, nil
 }

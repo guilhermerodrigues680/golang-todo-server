@@ -18,26 +18,28 @@ import (
 )
 
 // getLogger retorna uma instância do logger com configurações pré-definidas
-func getLogger(outputToFile bool) *logrus.Logger {
+func getLogger(isProduction bool) *logrus.Logger {
 	var logger = logrus.New()
 
 	logger.SetFormatter(&logrus.TextFormatter{
-		ForceColors:            true, // FIXME
+		ForceColors:            !isProduction,
 		FullTimestamp:          true,
 		DisableLevelTruncation: true,
 		PadLevelText:           true,
 	})
 
-	// log all
-	logger.SetLevel(logrus.TraceLevel)
-
-	if !outputToFile {
+	if !isProduction {
+		// log tudo
+		logger.SetLevel(logrus.TraceLevel)
 		// Output to stdout instead of the default stderr
 		logger.SetOutput(os.Stdout)
 		return logger
 	}
 
-	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// log somente da severidade info ou acima
+	logger.SetLevel(logrus.InfoLevel)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	file, err := os.OpenFile("todoapp.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		logger.SetOutput(file)
 		//multiWriter := io.MultiWriter(os.Stdout, file)
@@ -104,23 +106,24 @@ func startSignalListener(srv *http.Server, done chan error, logger *logrus.Logge
 }
 
 func main() {
-	logger := getLogger(false)
+	settings, err := appsettings.NewAppSettings("../settings.json")
+	if err != nil {
+		logrus.Fatalf("Failed to get configurations : %s", err)
+	}
 
-	err := run(logger)
+	logger := getLogger(settings.Environment.IsProduction)
+
+	logger.Infof("Starting TO-DO App, PID: %d", os.Getpid())
+	logger.Infof("App Mode: '%s', Is Production: %t", settings.Environment.AppMode, settings.Environment.IsProduction)
+
+	err = run(settings, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}
 }
 
 // run é responsável por inicializar e finalizar a aplicação
-func run(logger *logrus.Logger) error {
-	logger.Infof("Starting TO-DO App. PID: %d", os.Getpid())
-
-	settings, err := appsettings.NewAppSettings("../settings.json")
-	if err != nil {
-		return fmt.Errorf("Failed to get configurations : %w", err)
-	}
-
+func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
 	storageLogger := getContextLogger(logger, "storage", "inmem")
 	serviceLogger := getContextLogger(logger, "service", "todoservice")
 	transportLogger := getContextLogger(logger, "transport", "rest")

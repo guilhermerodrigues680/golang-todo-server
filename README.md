@@ -20,3 +20,12 @@ Estrutura dos arquivos
 ├-bin/
     ├-main-linux-amd64
 ```
+
+Executando a aplicação
+```sh
+# Modo de produção (ENV VAR 'APP_MODE' = 'production')
+$ APP_MODE=production ./bin/main-linux-amd64
+
+# Modo default desenvolvimento
+$ ./bin/main-linux-amd64
+```
