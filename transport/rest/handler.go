@@ -22,11 +22,12 @@ type TodoService interface {
 }
 
 type TransportRest struct {
-	Handler http.Handler
-	BaseUrl string
-	service TodoService
-	logger  *logrus.Entry
-	router  *httprouter.Router
+	ApiBaseUrl    string
+	StaticBaseUrl string
+	StaticDirPath string
+	service       TodoService
+	logger        *logrus.Entry
+	router        *httprouter.Router
 }
 
 // serverErrorResponse representa o padrão de resposta de erro da api
@@ -38,33 +39,81 @@ type serverErrorResponse struct {
 	Path      string    `json:"path"`
 }
 
-func NewTransportRest(ts TodoService, baseUrl string, logger *logrus.Entry) *TransportRest {
-	r := httprouter.New()
-	m := NewLoggingMiddleware(r, logger)
+// NewTransportRest retorna um http.Handler configurado com Rotas REST
+func NewTransportRest(ts TodoService, logger *logrus.Entry) *TransportRest {
+	const (
+		apiBaseUrl    = "/api/v1"
+		staticBaseUrl = "/web"
+		staticDirPath = "../web"
+	)
+
 	tr := TransportRest{
-		router:  r,
-		Handler: m, // caso não use um Middleware, o Handler deve ser o próprio router
-		BaseUrl: baseUrl,
-		service: ts,
-		logger:  logger,
+		router:        httprouter.New(),
+		ApiBaseUrl:    apiBaseUrl,
+		StaticBaseUrl: staticBaseUrl,
+		StaticDirPath: staticDirPath,
+		service:       ts,
+		logger:        logger,
 	}
 	tr.setHandlers()
+	tr.setStaticHandlers()
 	return &tr
+}
+
+// ServeHTTP faz o TransportRest implementar a interface http.Handler
+func (tr *TransportRest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	m := NewLoggingMiddleware(tr.router, tr.logger)
+	m.ServeHTTP(w, r)
 }
 
 func (tr *TransportRest) setHandlers() {
 	tr.logger.Trace("Starting handler configuration")
 	// Error
-	tr.router.GET(tr.BaseUrl+"/error", tr.errorExample)
+	tr.router.GET(tr.ApiBaseUrl+"/error", tr.errorExample)
 
 	// TO-DO
-	tr.router.GET(tr.BaseUrl+"/todo", tr.readAllTodos)
-	tr.router.POST(tr.BaseUrl+"/todo", tr.createTodo)
-	tr.router.GET(tr.BaseUrl+"/todo/:id", tr.readTodo)
-	tr.router.PUT(tr.BaseUrl+"/todo/:id", tr.updateTodo)
-	tr.router.DELETE(tr.BaseUrl+"/todo/:id", tr.deleteTodo)
+	tr.router.GET(tr.ApiBaseUrl+"/todo", tr.readAllTodos)
+	tr.router.POST(tr.ApiBaseUrl+"/todo", tr.createTodo)
+	tr.router.GET(tr.ApiBaseUrl+"/todo/:id", tr.readTodo)
+	tr.router.PUT(tr.ApiBaseUrl+"/todo/:id", tr.updateTodo)
+	tr.router.DELETE(tr.ApiBaseUrl+"/todo/:id", tr.deleteTodo)
 
 	tr.logger.Trace("Finalized configuration of the manipulators")
+}
+
+func (ts *TransportRest) setStaticHandlers() {
+	basicAuth := func(h httprouter.Handle) httprouter.Handle {
+		requiredUser := "gui"
+		requiredPassword := "123"
+
+		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			// Get the Basic Authentication credentials
+			user, password, hasAuth := r.BasicAuth()
+
+			if hasAuth && user == requiredUser && password == requiredPassword {
+				// Delegate request to the given handle
+				h(w, r, ps)
+			} else {
+				// Request Basic Authentication otherwise
+				w.Header().Set("WWW-Authenticate", "Basic realm=Restrito")
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			}
+		}
+	}
+
+	ts.logger.Trace("Starting static handler configuration")
+
+	fileServer := http.FileServer(http.Dir(ts.StaticDirPath))
+	ts.router.GET(ts.StaticBaseUrl+"/*filepath", basicAuth(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		req.URL.Path = p.ByName("filepath")
+		fileServer.ServeHTTP(w, req)
+	}))
+
+	ts.router.GET("/", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		http.Redirect(w, r, ts.StaticBaseUrl, http.StatusMovedPermanently)
+	})
+
+	ts.logger.Trace("Finalized configuration of the static manipulators")
 }
 
 func (tr *TransportRest) errorExample(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {

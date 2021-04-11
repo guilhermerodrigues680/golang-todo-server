@@ -130,13 +130,13 @@ func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
 
 	storage := storageinmem.NewStorageTodoInmem(storageLogger)
 	service := todoapp.NewTodoService(storage, serviceLogger)
-	restRouter := transportrest.NewTransportRest(service, "/api/v1", transportLogger)
+	restRouter := transportrest.NewTransportRest(service, transportLogger)
 
 	logger.Infof("Listening on: %s", settings.ServerInfo.Address)
 
 	srv := &http.Server{
 		Addr:    settings.ServerInfo.Address,
-		Handler: restRouter.Handler,
+		Handler: restRouter,
 	}
 
 	done := make(chan error)
