@@ -81,6 +81,25 @@ func (tr *TransportRest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (tr *TransportRest) setHandlers() {
 	tr.logger.Trace("Starting handler configuration")
+
+	// support CORS preflight requests
+	tr.router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Access-Control-Request-Method") != "" {
+			// Set CORS headers
+			header := w.Header()
+
+			tr.logger.Tracef("Preflight Request, 'Access-Control-Request-Method': %s", r.Header.Get("Access-Control-Request-Method"))
+			tr.logger.Tracef("Preflight Request, 'Access-Control-Allow-Methods': %s", header.Get("Allow"))
+
+			header.Set("Access-Control-Allow-Methods", header.Get("Allow"))
+			header.Set("Access-Control-Allow-Headers", "Content-Type")
+			header.Set("Access-Control-Allow-Origin", "*")
+		}
+
+		// Adjust status code to 204
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// Error
 	tr.router.GET(tr.ApiBaseUrl+"/error", tr.errorExample)
 
@@ -245,11 +264,18 @@ func (tr *TransportRest) deleteTodo(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	tr.sendResponseWithoutContent(http.StatusNoContent, w, r)
+}
+
+func (tr *TransportRest) sendResponseWithoutContent(httpStatus int, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(httpStatus)
 }
 
 func (tr *TransportRest) sendJsonResponse(httpStatus int, v interface{}, w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Content-Type", "application/json")
+	header := w.Header()
+	header.Set("Access-Control-Allow-Origin", "*")
+	header.Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	return json.NewEncoder(w).Encode(v)
 }
