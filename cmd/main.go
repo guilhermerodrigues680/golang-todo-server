@@ -130,7 +130,10 @@ func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
 
 	storage := storageinmem.NewStorageTodoInmem(storageLogger)
 	service := todoapp.NewTodoService(storage, serviceLogger)
-	restRouter := transportrest.NewTransportRest(service, transportLogger)
+	restRouter, err := transportrest.NewTransportRest(service, transportLogger)
+	if err != nil {
+		return err
+	}
 
 	logger.Infof("Listening on: %s", settings.ServerInfo.Address)
 

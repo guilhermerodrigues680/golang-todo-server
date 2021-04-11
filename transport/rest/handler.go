@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 	"todoapp"
@@ -40,24 +42,35 @@ type serverErrorResponse struct {
 }
 
 // NewTransportRest retorna um http.Handler configurado com Rotas REST
-func NewTransportRest(ts TodoService, logger *logrus.Entry) *TransportRest {
+func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, error) {
 	const (
 		apiBaseUrl    = "/api/v1"
 		staticBaseUrl = "/web"
 		staticDirPath = "../web"
 	)
 
+	ex, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get os.Executable : %w", err)
+	}
+
+	exPath := filepath.Dir(ex)
+	staticDirPathAbs, err := filepath.Abs(exPath + "/" + staticDirPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get settings File Abs : %w", err)
+	}
+
 	tr := TransportRest{
 		router:        httprouter.New(),
 		ApiBaseUrl:    apiBaseUrl,
 		StaticBaseUrl: staticBaseUrl,
-		StaticDirPath: staticDirPath,
+		StaticDirPath: staticDirPathAbs,
 		service:       ts,
 		logger:        logger,
 	}
 	tr.setHandlers()
 	tr.setStaticHandlers()
-	return &tr
+	return &tr, nil
 }
 
 // ServeHTTP faz o TransportRest implementar a interface http.Handler
