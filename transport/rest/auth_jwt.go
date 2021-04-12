@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/sirupsen/logrus"
 )
 
 type authUser struct {
@@ -24,15 +25,16 @@ const (
 
 var signingKey = []byte(ACCESS_SECRET)
 
-func createToken(username string) (string, error) {
+func createToken(username string) (string, time.Time, error) {
 
+	expiresAt := time.Now().Add(EXPIRY_TIME)
 	claims := appClaims{
 		Authorized: true,
 		StandardClaims: jwt.StandardClaims{
 			Issuer:    "todo-server",
 			Subject:   username,
 			IssuedAt:  time.Now().Unix(),
-			ExpiresAt: time.Now().Add(EXPIRY_TIME).Unix(),
+			ExpiresAt: expiresAt.Unix(),
 			// NotBefore: endOfDay().Unix(),
 		},
 	}
@@ -40,9 +42,12 @@ func createToken(username string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(signingKey)
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
-	return tokenString, nil
+
+	logrus.Infof("iat: %s, eat: %s", time.Now(), expiresAt)
+
+	return tokenString, expiresAt, nil
 }
 
 func verifyToken(tokenString string) (*jwt.Token, error) {

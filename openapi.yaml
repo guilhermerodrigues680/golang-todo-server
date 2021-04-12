@@ -17,6 +17,19 @@ servers:
 
 paths:
   
+  /authenticate:
+    post:
+      description: Faz a autentica da API
+      requestBody:
+        description: Usuário e senha
+        content: 
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/authuser'
+      responses:
+        '200':
+          description: OK
+
   /error:
     get:
       description: Retorna um exemplo de erro da API
@@ -126,6 +139,19 @@ components:
             $ref: '#/components/schemas/error'
 
   schemas:
+    authuser:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+      - username
+      - password
+      example:
+        username: 'gui'
+        password: '123'
     error:
       type: object
       properties:

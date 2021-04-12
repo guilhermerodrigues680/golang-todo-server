@@ -85,9 +85,11 @@ func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, err
 // ServeHTTP faz o TransportRest implementar a interface http.Handler
 func (tr *TransportRest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// ml -> ma -> tr.router
-	ma := NewAuthMiddleware(tr.router, tr.logger)
-	ml := NewLoggingMiddleware(ma, tr.logger)
-	ml.ServeHTTP(w, r)
+	// ma := NewAuthMiddleware(tr.router, tr.logger)
+	// ml := NewLoggingMiddleware(ma, tr.logger)
+	// ml.ServeHTTP(w, r)
+	m := NewLoggingMiddleware(tr.router, tr.logger)
+	m.ServeHTTP(w, r)
 }
 
 func (tr *TransportRest) setAuthHandlers() {
@@ -108,7 +110,7 @@ func (tr *TransportRest) setAuthHandlers() {
 			return
 		}
 
-		tokenString, err := createToken(*authReq.Username)
+		tokenString, expiresAt, err := createToken(*authReq.Username)
 		if err != nil {
 			tr.sendErrorResponse(http.StatusInternalServerError, ErrInvalidRequestBody.Error(), w, r)
 			return
@@ -118,6 +120,7 @@ func (tr *TransportRest) setAuthHandlers() {
 			Name:     "access_token",
 			Value:    tokenString,
 			HttpOnly: true,
+			Expires:  expiresAt,
 		}
 
 		http.SetCookie(w, &authCookie)
@@ -150,14 +153,14 @@ func (tr *TransportRest) setHandlers() {
 	})
 
 	// Error
-	tr.router.GET(tr.ApiBaseUrl+"/error", tr.errorExample)
+	tr.router.GET(tr.ApiBaseUrl+"/error", authHandlerFunc(tr.errorExample))
 
 	// TO-DO
-	tr.router.GET(tr.ApiBaseUrl+"/todo", tr.readAllTodos)
-	tr.router.POST(tr.ApiBaseUrl+"/todo", tr.createTodo)
-	tr.router.GET(tr.ApiBaseUrl+"/todo/:id", tr.readTodo)
-	tr.router.PUT(tr.ApiBaseUrl+"/todo/:id", tr.updateTodo)
-	tr.router.DELETE(tr.ApiBaseUrl+"/todo/:id", tr.deleteTodo)
+	tr.router.GET(tr.ApiBaseUrl+"/todo", authHandlerFunc(tr.readAllTodos))
+	tr.router.POST(tr.ApiBaseUrl+"/todo", authHandlerFunc(tr.createTodo))
+	tr.router.GET(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.readTodo))
+	tr.router.PUT(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.updateTodo))
+	tr.router.DELETE(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.deleteTodo))
 
 	tr.logger.Trace("Finalized configuration of the manipulators")
 }
