@@ -24,12 +24,13 @@ type TodoService interface {
 }
 
 type TransportRest struct {
-	ApiBaseUrl    string
-	StaticBaseUrl string
-	StaticDirPath string
-	service       TodoService
-	logger        *logrus.Entry
-	router        *httprouter.Router
+	ApiBaseUrl        string
+	StaticBaseUrl     string
+	StaticDirPath     string
+	StaticRootDirPath string
+	service           TodoService
+	logger            *logrus.Entry
+	router            *httprouter.Router
 }
 
 // serverErrorResponse representa o padrão de resposta de erro da api
@@ -44,9 +45,10 @@ type serverErrorResponse struct {
 // NewTransportRest retorna um http.Handler configurado com Rotas REST
 func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, error) {
 	const (
-		apiBaseUrl    = "/api/v1"
-		staticBaseUrl = "/web"
-		staticDirPath = "../web"
+		apiBaseUrl        = "/api/v1"
+		staticBaseUrl     = "/web"
+		staticDirPath     = "../web"
+		staticRootDirPath = "../"
 	)
 
 	ex, err := os.Executable()
@@ -60,13 +62,19 @@ func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, err
 		return nil, fmt.Errorf("Failed to get settings File Abs : %w", err)
 	}
 
+	staticRootDirPathAbs, err := filepath.Abs(exPath + "/" + staticRootDirPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get settings File Abs : %w", err)
+	}
+
 	tr := TransportRest{
-		router:        httprouter.New(),
-		ApiBaseUrl:    apiBaseUrl,
-		StaticBaseUrl: staticBaseUrl,
-		StaticDirPath: staticDirPathAbs,
-		service:       ts,
-		logger:        logger,
+		router:            httprouter.New(),
+		ApiBaseUrl:        apiBaseUrl,
+		StaticBaseUrl:     staticBaseUrl,
+		StaticDirPath:     staticDirPathAbs,
+		StaticRootDirPath: staticRootDirPathAbs,
+		service:           ts,
+		logger:            logger,
 	}
 	tr.setHandlers()
 	tr.setStaticHandlers()
@@ -115,32 +123,41 @@ func (tr *TransportRest) setHandlers() {
 
 func (ts *TransportRest) setStaticHandlers() {
 	basicAuth := func(h httprouter.Handle) httprouter.Handle {
-		requiredUser := "gui"
-		requiredPassword := "123"
+		return h
+		// requiredUser := "gui"
+		// requiredPassword := "123"
 
-		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			// Get the Basic Authentication credentials
-			user, password, hasAuth := r.BasicAuth()
+		// return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		// 	// Get the Basic Authentication credentials
+		// 	user, password, hasAuth := r.BasicAuth()
 
-			if hasAuth && user == requiredUser && password == requiredPassword {
-				// Delegate request to the given handle
-				h(w, r, ps)
-			} else {
-				// Request Basic Authentication otherwise
-				w.Header().Set("WWW-Authenticate", "Basic realm=Restrito")
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			}
-		}
+		// 	if hasAuth && user == requiredUser && password == requiredPassword {
+		// 		// Delegate request to the given handle
+		// 		h(w, r, ps)
+		// 	} else {
+		// 		// Request Basic Authentication otherwise
+		// 		w.Header().Set("WWW-Authenticate", "Basic realm=Restrito")
+		// 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		// 	}
+		// }
 	}
 
 	ts.logger.Trace("Starting static handler configuration")
 
+	// Servir os arquivos no 'StaticBaseUrl', ex: '/web/index.html'
 	fileServer := http.FileServer(http.Dir(ts.StaticDirPath))
 	ts.router.GET(ts.StaticBaseUrl+"/*filepath", basicAuth(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		req.URL.Path = p.ByName("filepath")
 		fileServer.ServeHTTP(w, req)
 	}))
 
+	// Servir arquivo 'openapi.yaml' que está na root dir
+	rootFileServer := http.FileServer(http.Dir(ts.StaticRootDirPath))
+	ts.router.GET("/openapi.yaml", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		rootFileServer.ServeHTTP(w, r)
+	})
+
+	// Redireciona as chamadas no '/' para o 'StaticBaseUrl', ex: '/web'
 	ts.router.GET("/", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		http.Redirect(w, r, ts.StaticBaseUrl, http.StatusMovedPermanently)
 	})

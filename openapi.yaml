@@ -1,0 +1,206 @@
+openapi: "3.0.3"
+info:
+  title: TO-DO Server
+  version: '0.0.1-alpha.0'
+  description: Documentação da API Rest no padrão OpenAPI 3.0.
+  contact:
+    name: guilhermerodrigues680
+    url: https://github.com/guilhermerodrigues680
+
+servers:
+  - url: '/api/v1'
+    description: Dominio Atual
+  - url: 'http://localhost:8080/api/v1'
+    description: Local
+  - url: 'https://todo-service.guilhermerodri8.repl.co/api/v1'
+    description: Replit
+
+paths:
+  
+  /error:
+    get:
+      description: Retorna um exemplo de erro da API
+      responses:
+        default:
+          $ref: '#/components/responses/GenericError'
+  /todo:
+    get:
+      description: Retorna os TO-DOs do sistema
+      # security:
+      #   - {}
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/todo-response'
+        default:
+          $ref: '#/components/responses/GenericError'
+
+    post:
+      description: Cadastra um TO-DO no sistema
+      requestBody:
+        description: Callback payload
+        content: 
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/TodoCreateRequest'
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/todo'
+        default:
+          $ref: '#/components/responses/GenericError'
+  
+  /todo/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identificação do TO-DO
+        schema:
+          type: integer
+    get:
+      description: Busca um TO-DO no sistema
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/todo'
+        default:
+          $ref: '#/components/responses/GenericError'
+
+    put:
+      description: Atualiza um TO-DO no sistema
+      requestBody:
+        description: Callback payload
+        content: 
+          'application/json':
+            schema:
+              $ref: '#/components/schemas/TodoUpdateRequest'
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/todo'
+        default:
+          $ref: '#/components/responses/GenericError'
+
+    delete:
+      description: Remove um TO-DO no sistema
+      responses:
+        '204':
+          description: Sucesso
+        default:
+          $ref: '#/components/responses/GenericError'
+
+security:
+  - ApiTokenAuth: []
+
+components:
+  securitySchemes:
+    ApiTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Autenticação JWT'
+    # BasicAuth:
+    #   type: http
+    #   scheme: basic
+    #   description: 'Autenticação Basic'
+
+  responses:
+    GenericError:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+
+  schemas:
+    error:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+      required:
+      - timestamp
+      - status
+      - error
+      - message
+      - path
+      example:
+        timestamp: '2021-01-29T18:01:35.676+00:00'
+        status: 500
+        error: 'Internal Server Error'
+        message: 'Example of an error'
+        path: '/api/v1/error'
+
+    todo:
+      type: object
+      properties:
+        id:
+          type: integer
+        description:
+          type: string
+        done:
+          type: boolean
+      required:
+      - id
+      - description
+      - done
+
+    TodoCreateRequest: 
+      type: object
+      properties:
+        description:
+          type: string
+      required:
+      - description
+    
+    TodoUpdateRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        done:
+          type: boolean
+      required:
+      - description
+      - done
+
+    todo-response:
+      type: object
+      properties:
+        todos:
+          type: array
+          items:
+            $ref: '#/components/schemas/todo'
+      required:
+      - todos
+  
+  links:
+    GetTodoByUserId:
+      operationRef: '#/paths/~1todo~1{id}/get'
+      parameters:
+        id: '$response.body#/id'
+      description: >
+        The `id` value returned in the response can be used as
+        the `id` parameter in `GET /todo/{id}`.
