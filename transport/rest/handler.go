@@ -206,7 +206,7 @@ func (tr *TransportRest) createTodo(w http.ResponseWriter, r *http.Request, _ ht
 		return
 	}
 
-	tr.sendJsonResponse(http.StatusOK, newTodo, w, r)
+	tr.sendJsonResponse(http.StatusCreated, newTodo, w, r)
 }
 
 func (tr *TransportRest) readTodo(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

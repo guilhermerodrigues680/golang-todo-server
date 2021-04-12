@@ -47,8 +47,8 @@ paths:
             schema:
               $ref: '#/components/schemas/TodoCreateRequest'
       responses:
-        '200':
-          description: Sucesso
+        '201':
+          description: 201 Created - Sucesso
           content:
             application/json:
               schema:
