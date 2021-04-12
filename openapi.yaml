@@ -29,6 +29,12 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            'application/json':
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        default:
+          $ref: '#/components/responses/GenericError'
 
   /error:
     get:
@@ -152,6 +158,22 @@ components:
       example:
         username: 'gui'
         password: '123'
+    
+    AuthTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - token
+      - expires_at
+      example:
+        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE2MTgyNjk2NjYsImlhdCI6MTYxODI2OTYwNiwiaXNzIjoidG9kby1zZXJ2ZXIiLCJzdWIiOiJhZG1pbiJ9.t-0pu1y1MoJBSys5iL-AkwZ7UkUx8N2S2OhTyGsZotQ'
+        expires_at: '2021-04-12T23:21:06Z'
+    
     error:
       type: object
       properties:

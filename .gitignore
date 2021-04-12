@@ -3,3 +3,4 @@
 
 .DS_Store
 todoapp.log
+/local_debug/debug_test.go

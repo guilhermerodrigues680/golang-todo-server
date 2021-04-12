@@ -22,7 +22,7 @@ type AuthJwt struct {
 func NewAuthJwt(logger *logrus.Entry) *AuthJwt {
 	const (
 		ACCESS_SECRET = "teste"
-		EXPIRY_TIME   = time.Second * 15
+		EXPIRY_TIME   = time.Second * 60
 	)
 
 	return &AuthJwt{
@@ -52,7 +52,7 @@ func (ajwt *AuthJwt) createToken(username string) (string, *appClaims, error) {
 		return "", nil, err
 	}
 
-	ajwt.logger.Infof("iat: %s, eat: %s", time.Now(), expiresAt)
+	ajwt.logger.Tracef("iat: %s, eat: %s", time.Now(), expiresAt)
 
 	return tokenString, &claims, nil
 }
@@ -71,7 +71,7 @@ func (ajwt *AuthJwt) verifyToken(tokenString string) (*jwt.Token, error) {
 		return nil, err
 	}
 
-	fmt.Println(token, claims)
+	ajwt.logger.Trace(token, claims)
 	return token, nil
 }
 

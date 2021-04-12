@@ -120,11 +120,20 @@ func (tr *TransportRest) setAuthHandlers(authJwt *AuthJwt) {
 			"guest": "",
 		}
 
-		pwd = users[*authUserReq.Username]
+		pwd, ok := users[*authUserReq.Username]
+		if !ok {
+			tr.sendErrorResponse(http.StatusBadRequest, ErrAuthUsernamePassword.Error(), w, r)
+			return
+		}
+
+		if pwd != *authUserReq.Password {
+			tr.sendErrorResponse(http.StatusBadRequest, ErrAuthUsernamePassword.Error(), w, r)
+			return
+		}
 
 		tokenString, jwtClaims, err := authJwt.createToken(*authUserReq.Username)
 		if err != nil {
-			tr.sendErrorResponse(http.StatusInternalServerError, ErrInvalidRequestBody.Error(), w, r)
+			tr.sendErrorResponse(http.StatusInternalServerError, err.Error(), w, r)
 			return
 		}
 
