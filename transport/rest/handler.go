@@ -77,14 +77,55 @@ func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, err
 		logger:            logger,
 	}
 	tr.setHandlers()
+	tr.setAuthHandlers()
 	tr.setStaticHandlers()
 	return &tr, nil
 }
 
 // ServeHTTP faz o TransportRest implementar a interface http.Handler
 func (tr *TransportRest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m := NewLoggingMiddleware(tr.router, tr.logger)
-	m.ServeHTTP(w, r)
+	// ml -> ma -> tr.router
+	ma := NewAuthMiddleware(tr.router, tr.logger)
+	ml := NewLoggingMiddleware(ma, tr.logger)
+	ml.ServeHTTP(w, r)
+}
+
+func (tr *TransportRest) setAuthHandlers() {
+	tr.logger.Trace("Starting Auth handler configuration")
+
+	// Authenticate
+	tr.router.POST(tr.ApiBaseUrl+"/authenticate", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+
+		var authReq authUser
+
+		if err := json.NewDecoder(r.Body).Decode(&authReq); err != nil {
+			tr.sendErrorResponse(http.StatusBadRequest, fmt.Sprintf("%s : %s", ErrDecodeRequestBody, err), w, r)
+			return
+		}
+
+		if authReq.Username == nil || authReq.Password == nil {
+			tr.sendErrorResponse(http.StatusBadRequest, ErrInvalidRequestBody.Error(), w, r)
+			return
+		}
+
+		tokenString, err := createToken(*authReq.Username)
+		if err != nil {
+			tr.sendErrorResponse(http.StatusInternalServerError, ErrInvalidRequestBody.Error(), w, r)
+			return
+		}
+
+		authCookie := http.Cookie{
+			Name:     "access_token",
+			Value:    tokenString,
+			HttpOnly: true,
+		}
+
+		http.SetCookie(w, &authCookie)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "authenticate: \n'%s'", tokenString)
+	})
+
+	tr.logger.Trace("Finalized configuration of the Auth manipulators")
 }
 
 func (tr *TransportRest) setHandlers() {
