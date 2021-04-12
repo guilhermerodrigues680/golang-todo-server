@@ -11,70 +11,82 @@ import (
 
 // AuthMiddleware faz a autenticação e autorização da requisição HTTP
 type AuthMiddleware struct {
-	next   http.Handler
-	logger *logrus.Entry
+	logger  *logrus.Entry
+	tr      *TransportRest
+	authJwt *AuthJwt
 }
 
-func NewAuthMiddleware(next http.Handler, logger *logrus.Entry) *AuthMiddleware {
-	return &AuthMiddleware{next: next, logger: logger}
-}
-
-func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m.logger.Trace("Auth...")
-
-	if !strings.HasSuffix(r.URL.Path, "/authenticate") {
-		err := auth(r.Header.Get("Authorization"))
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, err)
-			return
-		}
-
-		// w.WriteHeader(http.StatusForbidden)
+func NewAuthMiddleware(tr *TransportRest, authJwt *AuthJwt, logger *logrus.Entry) *AuthMiddleware {
+	return &AuthMiddleware{
+		tr:      tr,
+		logger:  logger,
+		authJwt: authJwt,
 	}
-
-	m.next.ServeHTTP(w, r)
 }
 
-func authHandlerFunc(h httprouter.Handle) httprouter.Handle {
+func (am *AuthMiddleware) authHandlerFunc(h httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// A autenticação ocorre em duas etapas
-		// 1 - Tenta autentica usar o HEADER Authorization
+		// A autenticação pode ocorrer em uma ou duas etapas
+		// 1 - Tenta autenticar usando o token do HEADER Authorization
+		// Em caso de sucesso não tenta autenticar com Cookie
 		// 2 - Em caso de erro tenta autenticar usando o Cookie de acesso
 
 		authCookie, _ := r.Cookie("access_token")
 		authHeader := r.Header.Get("Authorization")
 
-		errAuth1 := authUsingHeader(authHeader)
+		errAuth1 := am.authUsingHeader(authHeader)
 		if errAuth1 != nil && authCookie == nil {
-			logrus.Info("Erro ao autenticar usando HEADER, COOKIE não fornecido")
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprintf(w, "Erro: %s", errAuth1)
+			am.logger.Trace("Error while authenticating using in HEADER Authentication Token. NOTE: COOKIE not provided")
+			am.tr.sendErrorResponse(http.StatusUnauthorized, errAuth1.Error(), w, r)
 			return
 		}
 
 		if errAuth1 != nil {
-			logrus.Info("Erro ao autenticar usando HEADER, tentando com COOKIE fornecido")
-			errAuth2 := authUsingCookie(*authCookie)
+			am.logger.Trace("Error while authenticating using in HEADER Authentication Token. Trying with cookie provided")
+			errAuth2 := am.authUsingCookie(*authCookie)
 			if errAuth2 != nil {
-				logrus.Info("Erro ao autenticar usando HEADER E COOKIE")
-				w.WriteHeader(http.StatusUnauthorized)
-				fmt.Fprintf(w, "Erros: %s , %s", errAuth1, errAuth2)
+				am.logger.Trace("Error while authenticating using COOKIE")
+				am.tr.sendErrorResponse(http.StatusUnauthorized, fmt.Sprintf("%s , %s", errAuth1, errAuth2), w, r)
 				return
 			}
 		}
 
 		if errAuth1 == nil {
-			logrus.Info("Autenticando usando HEADER")
+			am.logger.Trace("Authenticated using HEADER")
 		} else {
-			logrus.Info("Autenticando usando COOKIE")
+			am.logger.Trace("Authenticated using COOKIE")
 		}
 
 		h(w, r, ps)
 	}
 }
 
-// Helper
+func (am *AuthMiddleware) authUsingCookie(cookie http.Cookie) error {
+	return am.auth(cookie.Value)
+}
+
+func (am *AuthMiddleware) authUsingHeader(headerValue string) error {
+	authHeaderValue, err := parseBearerToken(headerValue)
+	if err != nil {
+		return err
+	}
+
+	return am.auth(authHeaderValue)
+}
+
+func (am *AuthMiddleware) auth(tokenString string) error {
+	if tokenString == "" {
+		return fmt.Errorf("required Bearer Authorization")
+	}
+	_, err := am.authJwt.verifyToken(tokenString)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Helpers
 
 // parseBearerToken parses an HTTP Bearer Token
 func parseBearerToken(auth string) (string, error) {
@@ -84,29 +96,4 @@ func parseBearerToken(auth string) (string, error) {
 		return "", fmt.Errorf("invalid Bearer Authentication")
 	}
 	return auth[len(prefix):], nil
-}
-
-func auth(tokenString string) error {
-	if tokenString == "" {
-		return fmt.Errorf("required Bearer Authorization")
-	}
-	_, err := verifyToken(tokenString)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authUsingCookie(cookie http.Cookie) error {
-	return auth(cookie.Value)
-}
-
-func authUsingHeader(headerValue string) error {
-	authHeaderValue, err := parseBearerToken(headerValue)
-	if err != nil {
-		return err
-	}
-
-	return auth(authHeaderValue)
 }

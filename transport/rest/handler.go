@@ -76,41 +76,53 @@ func NewTransportRest(ts TodoService, logger *logrus.Entry) (*TransportRest, err
 		service:           ts,
 		logger:            logger,
 	}
-	tr.setHandlers()
-	tr.setAuthHandlers()
+
+	authJwt := NewAuthJwt(logger)
+	tr.setHandlers(authJwt)
+	tr.setAuthHandlers(authJwt)
 	tr.setStaticHandlers()
 	return &tr, nil
 }
 
 // ServeHTTP faz o TransportRest implementar a interface http.Handler
 func (tr *TransportRest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// ml -> ma -> tr.router
-	// ma := NewAuthMiddleware(tr.router, tr.logger)
-	// ml := NewLoggingMiddleware(ma, tr.logger)
-	// ml.ServeHTTP(w, r)
 	m := NewLoggingMiddleware(tr.router, tr.logger)
 	m.ServeHTTP(w, r)
 }
 
-func (tr *TransportRest) setAuthHandlers() {
+func (tr *TransportRest) setAuthHandlers(authJwt *AuthJwt) {
 	tr.logger.Trace("Starting Auth handler configuration")
 
 	// Authenticate
 	tr.router.POST(tr.ApiBaseUrl+"/authenticate", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
-		var authReq authUser
+		type authUser struct {
+			Username *string `json:"username"`
+			Password *string `json:"password"`
+		}
 
-		if err := json.NewDecoder(r.Body).Decode(&authReq); err != nil {
+		var authUserReq authUser
+
+		if err := json.NewDecoder(r.Body).Decode(&authUserReq); err != nil {
 			tr.sendErrorResponse(http.StatusBadRequest, fmt.Sprintf("%s : %s", ErrDecodeRequestBody, err), w, r)
 			return
 		}
 
-		if authReq.Username == nil || authReq.Password == nil {
+		if authUserReq.Username == nil || authUserReq.Password == nil {
 			tr.sendErrorResponse(http.StatusBadRequest, ErrInvalidRequestBody.Error(), w, r)
 			return
 		}
 
-		tokenString, expiresAt, err := createToken(*authReq.Username)
+		// mapa usuario/senha
+		users := map[string]string{
+			"admin": "admin",
+			"gui":   "123",
+			"guest": "",
+		}
+
+		pwd = users[*authUserReq.Username]
+
+		tokenString, jwtClaims, err := authJwt.createToken(*authUserReq.Username)
 		if err != nil {
 			tr.sendErrorResponse(http.StatusInternalServerError, ErrInvalidRequestBody.Error(), w, r)
 			return
@@ -120,19 +132,32 @@ func (tr *TransportRest) setAuthHandlers() {
 			Name:     "access_token",
 			Value:    tokenString,
 			HttpOnly: true,
-			Expires:  expiresAt,
+			Expires:  time.Unix(jwtClaims.ExpiresAt, 0),
 		}
 
+		type AuthTokenResponse struct {
+			Token     string    `json:"token"`
+			ExpiresAt time.Time `json:"expires_at"`
+		}
+
+		authTokenResponse := AuthTokenResponse{
+			Token:     tokenString,
+			ExpiresAt: time.Unix(jwtClaims.ExpiresAt, 0).UTC(),
+		}
+
+		tr.logger.Trace(authCookie.Expires, authTokenResponse.ExpiresAt)
+
 		http.SetCookie(w, &authCookie)
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "authenticate: \n'%s'", tokenString)
+		tr.sendJsonResponse(http.StatusOK, authTokenResponse, w, r)
 	})
 
 	tr.logger.Trace("Finalized configuration of the Auth manipulators")
 }
 
-func (tr *TransportRest) setHandlers() {
+func (tr *TransportRest) setHandlers(authJwt *AuthJwt) {
 	tr.logger.Trace("Starting handler configuration")
+
+	authMid := NewAuthMiddleware(tr, authJwt, tr.logger)
 
 	// support CORS preflight requests
 	tr.router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -153,14 +178,14 @@ func (tr *TransportRest) setHandlers() {
 	})
 
 	// Error
-	tr.router.GET(tr.ApiBaseUrl+"/error", authHandlerFunc(tr.errorExample))
+	tr.router.GET(tr.ApiBaseUrl+"/error", authMid.authHandlerFunc(tr.errorExample))
 
 	// TO-DO
-	tr.router.GET(tr.ApiBaseUrl+"/todo", authHandlerFunc(tr.readAllTodos))
-	tr.router.POST(tr.ApiBaseUrl+"/todo", authHandlerFunc(tr.createTodo))
-	tr.router.GET(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.readTodo))
-	tr.router.PUT(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.updateTodo))
-	tr.router.DELETE(tr.ApiBaseUrl+"/todo/:id", authHandlerFunc(tr.deleteTodo))
+	tr.router.GET(tr.ApiBaseUrl+"/todo", authMid.authHandlerFunc(tr.readAllTodos))
+	tr.router.POST(tr.ApiBaseUrl+"/todo", authMid.authHandlerFunc(tr.createTodo))
+	tr.router.GET(tr.ApiBaseUrl+"/todo/:id", authMid.authHandlerFunc(tr.readTodo))
+	tr.router.PUT(tr.ApiBaseUrl+"/todo/:id", authMid.authHandlerFunc(tr.updateTodo))
+	tr.router.DELETE(tr.ApiBaseUrl+"/todo/:id", authMid.authHandlerFunc(tr.deleteTodo))
 
 	tr.logger.Trace("Finalized configuration of the manipulators")
 }

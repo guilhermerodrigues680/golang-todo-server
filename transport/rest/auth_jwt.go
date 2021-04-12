@@ -8,26 +8,33 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type authUser struct {
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-}
-
 type appClaims struct {
 	Authorized bool `json:"authorized"`
 	jwt.StandardClaims
 }
 
-const (
-	ACCESS_SECRET = "teste"
-	EXPIRY_TIME   = time.Second * 15
-)
+type AuthJwt struct {
+	accessSecret string
+	expiryTime   time.Duration
+	logger       *logrus.Entry
+}
 
-var signingKey = []byte(ACCESS_SECRET)
+func NewAuthJwt(logger *logrus.Entry) *AuthJwt {
+	const (
+		ACCESS_SECRET = "teste"
+		EXPIRY_TIME   = time.Second * 15
+	)
 
-func createToken(username string) (string, time.Time, error) {
+	return &AuthJwt{
+		accessSecret: ACCESS_SECRET,
+		expiryTime:   EXPIRY_TIME,
+		logger:       logger,
+	}
+}
 
-	expiresAt := time.Now().Add(EXPIRY_TIME)
+func (ajwt *AuthJwt) createToken(username string) (string, *appClaims, error) {
+
+	expiresAt := time.Now().Add(ajwt.expiryTime)
 	claims := appClaims{
 		Authorized: true,
 		StandardClaims: jwt.StandardClaims{
@@ -40,24 +47,24 @@ func createToken(username string) (string, time.Time, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(signingKey)
+	tokenString, err := token.SignedString([]byte(ajwt.accessSecret))
 	if err != nil {
-		return "", time.Time{}, err
+		return "", nil, err
 	}
 
-	logrus.Infof("iat: %s, eat: %s", time.Now(), expiresAt)
+	ajwt.logger.Infof("iat: %s, eat: %s", time.Now(), expiresAt)
 
-	return tokenString, expiresAt, nil
+	return tokenString, &claims, nil
 }
 
-func verifyToken(tokenString string) (*jwt.Token, error) {
+func (ajwt *AuthJwt) verifyToken(tokenString string) (*jwt.Token, error) {
 	var claims appClaims
 	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
 		// O algoritmo de assinatura utilizado deve ser HMAC.
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return signingKey, nil
+		return []byte(ajwt.accessSecret), nil
 	})
 
 	if err != nil {
