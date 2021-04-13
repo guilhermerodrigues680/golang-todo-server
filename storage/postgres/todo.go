@@ -70,6 +70,10 @@ func (pt *PostgresTodo) ReadAll() ([]todoapp.Todo, error) {
 	}
 
 	rows, err := pt.ps.ConnPool.Query(context.Background(), sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
 	defer rows.Close()
 
 	todoList := make([]todoapp.Todo, 0)
