@@ -11,7 +11,7 @@ import (
 	"time"
 	"todoapp"
 	"todoapp/appsettings"
-	storageinmem "todoapp/storage/inmem"
+	storagepostgres "todoapp/storage/postgres"
 	transportrest "todoapp/transport/rest"
 
 	"github.com/sirupsen/logrus"
@@ -124,12 +124,30 @@ func main() {
 
 // run é responsável por inicializar e finalizar a aplicação
 func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
-	storageLogger := getContextLogger(logger, "storage", "inmem")
+	// storageInmemLogger := getContextLogger(logger, "storage", "inmem")
+	storagePgsqlLogger := getContextLogger(logger, "storage", "postgres")
 	serviceLogger := getContextLogger(logger, "service", "todoservice")
 	transportLogger := getContextLogger(logger, "transport", "rest")
 
-	storage := storageinmem.NewStorageTodoInmem(storageLogger)
-	service := todoapp.NewTodoService(storage, serviceLogger)
+	storagePgsqlService, err := storagepostgres.NewPostgresService(
+		settings.StorageCredentials.DBHost,
+		settings.StorageCredentials.DBPort,
+		settings.StorageCredentials.DBName,
+		settings.StorageCredentials.DBUser,
+		settings.StorageCredentials.DBPassword,
+		storagePgsqlLogger)
+
+	if err != nil {
+		return err
+	}
+
+	storagePgsqlService.MigrateTables()
+	storageTodo := storagepostgres.NewPostgresTodo(storagePgsqlService, storagePgsqlLogger)
+
+	// storageInmem := storageinmem.NewStorageTodoInmem(storageInmemLogger)
+	// service := todoapp.NewTodoService(storageInmem, serviceLogger)
+	service := todoapp.NewTodoService(storageTodo, serviceLogger)
+
 	restRouter, err := transportrest.NewTransportRest(service, transportLogger)
 	if err != nil {
 		return err

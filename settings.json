@@ -1,5 +1,12 @@
 {  
   "server_info": {
     "address": "0.0.0.0:8080"
+  },
+  "storage_credentials": {
+    "db_host": "localhost",
+    "db_port": 15432,
+    "db_name": "todo",
+    "db_user": "todo",
+    "db_password": "toor"
   }
 }

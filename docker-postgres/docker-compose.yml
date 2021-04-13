@@ -1,0 +1,38 @@
+version: '2.4'
+
+services:
+  postgres:
+    image: postgres:13.1-alpine
+    environment:
+      POSTGRES_PASSWORD: "toor"
+      POSTGRES_USER: "todo"
+      POSTGRES_DB: "todo"
+      TZ: "America/Sao_Paulo"
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    networks:
+      - back-end
+      
+  pgadmin:
+    image: dpage/pgadmin4:5.0
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "todo@todo.com.br"
+      PGADMIN_DEFAULT_PASSWORD: "todo"
+    ports:
+      - "16543:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    networks:
+      - back-end
+
+networks: 
+  back-end:
+    driver: bridge
+
+volumes:
+  postgresqldata:
+  pgadmindata:

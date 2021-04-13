@@ -22,7 +22,7 @@ type AuthJwt struct {
 func NewAuthJwt(logger *logrus.Entry) *AuthJwt {
 	const (
 		ACCESS_SECRET = "teste"
-		EXPIRY_TIME   = time.Second * 60
+		EXPIRY_TIME   = time.Hour
 	)
 
 	return &AuthJwt{

@@ -12,13 +12,22 @@ import (
 
 // AppSettings representa a estrutura que o arquivo '.json' de configurações deve possuir
 type AppSettings struct {
-	ServerInfo  ServerInfo  `json:"server_info"`
-	Environment Environment `json:"environment"`
+	ServerInfo         ServerInfo         `json:"server_info"`
+	Environment        Environment        `json:"environment"`
+	StorageCredentials StorageCredentials `json:"storage_credentials"`
 }
 
 // ServerInfo configurações do servidor HTTP
 type ServerInfo struct {
 	Address string `json:"address"`
+}
+
+type StorageCredentials struct {
+	DBHost     string `json:"db_host"`
+	DBName     string `json:"db_name"`
+	DBUser     string `json:"db_user"`
+	DBPassword string `json:"db_password"`
+	DBPort     int    `json:"db_port"`
 }
 
 type Environment struct {
