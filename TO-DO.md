@@ -1,0 +1,1 @@
+- Wrapper Erros do Postgres
