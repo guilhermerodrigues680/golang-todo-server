@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -47,8 +48,11 @@ func NewPostgresService(host string, port int, dbname string, user string, passw
 	config.ConnConfig.Logger = NewPgsqlLogger(internalLogger)
 	config.ConnConfig.LogLevel = pgx.LogLevelTrace
 	// config.LazyConnect = true
-	// config.MinConns = 4
-	// config.MaxConns = 4
+	config.MinConns = 1
+	config.MaxConns = 40
+	config.MaxConnLifetime = 5 * time.Minute
+	config.MaxConnIdleTime = 25 * time.Second
+	config.HealthCheckPeriod = 15 * time.Second
 
 	config.BeforeConnect = func(c context.Context, cc *pgx.ConnConfig) error {
 		internalLogger.Tracef("BeforeConnect")
