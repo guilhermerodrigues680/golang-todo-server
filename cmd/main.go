@@ -178,6 +178,7 @@ func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
 
 	var opts []grpc.ServerOption
 	opts = append(opts, grpc.ChainUnaryInterceptor(transportgrpc.LogRequest))
+	opts = append(opts, grpc.ChainStreamInterceptor(transportgrpc.LogStreamRequest))
 	grpcServer := grpc.NewServer(opts...)
 	// grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(transportgrpc.LogRequest))
 

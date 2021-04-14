@@ -17,7 +17,7 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}/local_debug/client/main.go",
-            "args": ["descricao"]
+            "args": ["-server_addr", "localhost:10000", "delete-multiple", "1", "2"]
         }
     ]
 }

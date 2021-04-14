@@ -10,12 +10,19 @@ option go_package = "./pbtodoapp;pbtodoapp";
 package todoapp;
 
 service TodoService {
+    // Unary RPC
     rpc Create (TodoCreateRequest) returns (Todo){}
+    // Bidirectional streaming RPC
     rpc CreateMultiple (stream TodoCreateRequest) returns (stream Todo){}
+    // Unary RPC
     rpc Read (Id) returns (Todo){}
+    // Server streaming RPC
 	rpc ReadAll (ReadAllRequest) returns (stream Todo){}
+    // Unary RPC
 	rpc Update (Todo) returns (Todo){}
+    // Unary RPC
 	rpc Delete (Id) returns (DeleteResponse){}
+    // Client streaming RPC
 	rpc DeleteMultiple (stream Id) returns (DeleteResponse){}
 }
 

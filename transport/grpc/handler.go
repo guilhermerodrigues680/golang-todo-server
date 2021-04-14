@@ -2,6 +2,8 @@ package transportgrpc
 
 import (
 	"context"
+	"errors"
+	"io"
 	"todoapp"
 	"todoapp/transport/grpc/pbtodoapp"
 
@@ -40,7 +42,6 @@ func (tg *TransportGRPC) Create(ctx context.Context, todoReq *pbtodoapp.TodoCrea
 	}
 
 	return TodoToPbTodo(todo), nil
-	//return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
 }
 
 func (tg *TransportGRPC) Read(ctx context.Context, idReq *pbtodoapp.Id) (*pbtodoapp.Todo, error) {
@@ -51,6 +52,43 @@ func (tg *TransportGRPC) Read(ctx context.Context, idReq *pbtodoapp.Id) (*pbtodo
 	}
 
 	return TodoToPbTodo(todo), nil
+}
+
+func (tg *TransportGRPC) ReadAll(_ *pbtodoapp.ReadAllRequest, stream pbtodoapp.TodoService_ReadAllServer) error {
+
+	todos, err := tg.service.ReadAll()
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+
+	for _, todo := range todos {
+		if err := stream.Send(TodoToPbTodo(todo)); err != nil {
+			tg.logger.Error(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (tg *TransportGRPC) DeleteMultiple(stream pbtodoapp.TodoService_DeleteMultipleServer) error {
+	for {
+		idReq, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return stream.SendAndClose(&pbtodoapp.DeleteResponse{})
+			}
+			return err
+		}
+
+		err = tg.service.Delete(int(idReq.Id))
+		if err != nil {
+			if errors.Is(err, todoapp.ErrNotFound) {
+				return status.Errorf(codes.NotFound, err.Error())
+			}
+			return status.Errorf(codes.Internal, err.Error())
+		}
+	}
 }
 
 // Adapters

@@ -1,1 +1,4 @@
 - Wrapper Erros do Postgres
+- Checar se resultset do ReadAll é vazio
+- Checar se resultset do Read é vazio
+- Checar se delete deletou alguma linha
