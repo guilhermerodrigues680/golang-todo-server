@@ -1,0 +1,36 @@
+//****************************************************
+// protoc --go_out=. --go-grpc_out=. ./*.proto
+//****************************************************
+
+syntax = "proto3";
+
+// dirout;package
+option go_package = "./pbtodoapp;pbtodoapp";
+
+package todoapp;
+
+service TodoService {
+    rpc Create (TodoCreateRequest) returns (Todo){}
+    rpc Read (Id) returns (Todo){}
+	rpc ReadAll (ReadAllRequest) returns (stream Todo){}
+	rpc Update (Todo) returns (Todo){}
+	rpc Delete (Id) returns (DeleteResponse){}
+}
+
+message ReadAllRequest {}
+
+message DeleteResponse {}
+
+message Todo {
+    uint64 id = 1;
+    string description = 2;
+    bool done = 3;
+}
+
+message TodoCreateRequest {
+    string description = 1;
+}
+
+message Id {
+    uint64 id = 1;
+}

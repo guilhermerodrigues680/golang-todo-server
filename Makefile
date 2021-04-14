@@ -12,4 +12,7 @@ cross: cmd clearbin
 run: cross
 	./bin/main
 
-.PHONY: default run clearbin
+protobuffer:
+	protoc --go_out=./transport/grpc --go-grpc_out=./transport/grpc ./protobuffer-files/*.proto
+
+.PHONY: default run clearbin protobuffer

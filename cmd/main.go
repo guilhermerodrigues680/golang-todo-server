@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,9 +13,12 @@ import (
 	"todoapp"
 	"todoapp/appsettings"
 	storagepostgres "todoapp/storage/postgres"
+	transportgrpc "todoapp/transport/grpc"
+	"todoapp/transport/grpc/pbtodoapp"
 	transportrest "todoapp/transport/rest"
 
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // getLogger retorna uma instância do logger com configurações pré-definidas
@@ -163,6 +167,25 @@ func run(settings *appsettings.AppSettings, logger *logrus.Logger) error {
 	done := make(chan error)
 	startHttpServer(srv, done, logger)
 	startSignalListener(srv, done, logger)
+
+	//----gRPC
+	address := "localhost:10000"
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		logger.Errorf("failed to listen: %v", err)
+		return err
+	}
+
+	var opts []grpc.ServerOption
+	opts = append(opts, grpc.ChainUnaryInterceptor(transportgrpc.LogRequest))
+	grpcServer := grpc.NewServer(opts...)
+	// grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(transportgrpc.LogRequest))
+
+	s := transportgrpc.NewTransportGRPC(service, getContextLogger(logger, "transport", "gRPC"))
+	pbtodoapp.RegisterTodoServiceServer(grpcServer, s)
+	logger.Infof("gRPC Listening on: %s", address)
+	grpcServer.Serve(lis)
+	//----gRPC
 
 	if err := <-done; err != nil {
 		errWrapped := fmt.Errorf("Error in run : %w", err)
