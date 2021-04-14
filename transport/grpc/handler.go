@@ -6,6 +6,8 @@ import (
 	"todoapp/transport/grpc/pbtodoapp"
 
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type TodoService interface {
@@ -34,11 +36,21 @@ func (tg *TransportGRPC) Create(ctx context.Context, todoReq *pbtodoapp.TodoCrea
 
 	todo, err := tg.service.Create(todoReq.Description)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return TodoToPbTodo(todo), nil
 	//return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
+}
+
+func (tg *TransportGRPC) Read(ctx context.Context, idReq *pbtodoapp.Id) (*pbtodoapp.Todo, error) {
+
+	todo, err := tg.service.Read(int(idReq.Id))
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return TodoToPbTodo(todo), nil
 }
 
 // Adapters

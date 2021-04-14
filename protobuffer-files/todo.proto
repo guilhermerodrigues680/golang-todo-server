@@ -11,10 +11,12 @@ package todoapp;
 
 service TodoService {
     rpc Create (TodoCreateRequest) returns (Todo){}
+    rpc CreateMultiple (stream TodoCreateRequest) returns (stream Todo){}
     rpc Read (Id) returns (Todo){}
 	rpc ReadAll (ReadAllRequest) returns (stream Todo){}
 	rpc Update (Todo) returns (Todo){}
 	rpc Delete (Id) returns (DeleteResponse){}
+	rpc DeleteMultiple (stream Id) returns (DeleteResponse){}
 }
 
 message ReadAllRequest {}

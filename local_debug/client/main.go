@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"io"
 	"log"
 	"time"
 	clientinterceptors "todoapp/local_debug/client/client_interceptors"
@@ -11,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -61,4 +63,29 @@ func main() {
 	}
 
 	logrus.Info(todo)
+
+	stream0, err := client.ReadAll(ctx, &pbtodoapp.ReadAllRequest{})
+	if err != nil {
+		log.Fatalf("fail to dial: %v", err)
+	}
+
+	for {
+		todo, err := stream0.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			// check if is status err
+			if st, ok := status.FromError(err); ok {
+				log.Fatalf("Status err = %s, %d", st.Message(), st.Code())
+			} else {
+				log.Fatalf("%v.GetNames(_) = _, %v", client, err)
+			}
+		}
+
+		log.Println(todo)
+	}
+
+	logrus.Info(stream0)
 }
